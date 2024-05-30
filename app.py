@@ -66,7 +66,7 @@ def update_inventory():
     
     if product_inventory:
         current_quantity = product_inventory['quantity']
-        if quantity_to_deduct <= current_quantity:
+        if int(quantity_to_deduct) <= int(current_quantity):
             new_quantity = current_quantity - quantity_to_deduct
             cursor.execute("""
                 UPDATE inventory
