@@ -22,8 +22,8 @@ def get_db_connection():
     )
     return conn
 
-@app.route('/inventory/<int:product_id>', methods=['GET'])
-def get_product_inventory(product_id):
+@app.route('/inventory/<string:product_name>', methods=['GET'])
+def get_product_inventory_by_name(product_name):
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
     
@@ -31,8 +31,8 @@ def get_product_inventory(product_id):
         SELECT p.product_id, p.name, p.description, p.price, i.quantity
         FROM products p
         JOIN inventory i ON p.product_id = i.product_id
-        WHERE p.product_id = %s
-    """, (product_id,))
+        WHERE p.name = %s
+    """, (product_name,))
     
     product = cursor.fetchone()
     cursor.close()
@@ -46,26 +46,47 @@ def get_product_inventory(product_id):
 @app.route('/inventory/update', methods=['POST'])
 def update_inventory():
     data = request.get_json()
-    product_id = data.get('product_id')
-    quantity = data.get('quantity')
+    name = data.get('name')
+    quantity_to_deduct = data.get('quantity')
     
-    if not product_id or not quantity:
+    if not name or not quantity_to_deduct:
         return jsonify({'error': 'Invalid input'}), 400
     
     conn = get_db_connection()
-    cursor = conn.cursor()
+    cursor = conn.cursor(cursor_factory=RealDictCursor)
     
     cursor.execute("""
-        UPDATE inventory
-        SET quantity = %s, last_updated = %s
-        WHERE product_id = %s
-    """, (quantity, datetime.now(), product_id))
+        SELECT i.product_id, i.quantity
+        FROM products p
+        JOIN inventory i ON p.product_id = i.product_id
+        WHERE p.name = %s
+    """, (name,))
     
-    conn.commit()
-    cursor.close()
-    conn.close()
+    product_inventory = cursor.fetchone()
     
-    return jsonify({'message': 'Inventory updated successfully'})
+    if product_inventory:
+        current_quantity = product_inventory['quantity']
+        if quantity_to_deduct <= current_quantity:
+            new_quantity = current_quantity - quantity_to_deduct
+            cursor.execute("""
+                UPDATE inventory
+                SET quantity = %s, last_updated = %s
+                WHERE product_id = %s
+            """, (new_quantity, datetime.now(), product_inventory['product_id']))
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+            
+            return jsonify({'message': 'Inventory updated successfully'})
+        else:
+            cursor.close()
+            conn.close()
+            return jsonify({'error': 'Not enough inventory'}), 400
+    else:
+        cursor.close()
+        conn.close()
+        return jsonify({'error': 'Product not found'}), 404
 
 if __name__ == '__main__':
     app.run(debug=True)
