@@ -23,16 +23,23 @@ def get_db_connection():
     return conn
 
 @app.route('/inventory/<int:product_id>', methods=['GET'])
-def get_inventory(product_id):
+def get_product_inventory(product_id):
     conn = get_db_connection()
     cursor = conn.cursor(cursor_factory=RealDictCursor)
-    cursor.execute('SELECT * FROM inventory WHERE product_id = %s', (product_id,))
-    inventory = cursor.fetchone()
+    
+    cursor.execute("""
+        SELECT p.product_id, p.name, p.description, p.price, i.quantity
+        FROM products p
+        JOIN inventory i ON p.product_id = i.product_id
+        WHERE p.product_id = %s
+    """, (product_id,))
+    
+    product = cursor.fetchone()
     cursor.close()
     conn.close()
     
-    if inventory:
-        return jsonify(inventory), 200
+    if product:
+        return jsonify(product)
     else:
         return jsonify({'error': 'Product not found'}), 404
 
@@ -42,31 +49,23 @@ def update_inventory():
     product_id = data.get('product_id')
     quantity = data.get('quantity')
     
-    if not product_id or quantity is None:
-        return jsonify({'error': 'Product ID and quantity are required'}), 400
+    if not product_id or not quantity:
+        return jsonify({'error': 'Invalid input'}), 400
     
     conn = get_db_connection()
     cursor = conn.cursor()
     
-    cursor.execute('SELECT * FROM products WHERE product_id = %s', (product_id,))
-    product = cursor.fetchone()
+    cursor.execute("""
+        UPDATE inventory
+        SET quantity = %s, last_updated = %s
+        WHERE product_id = %s
+    """, (quantity, datetime.now(), product_id))
     
-    if not product:
-        cursor.close()
-        conn.close()
-        return jsonify({'error': 'Product not found'}), 404
-    
-    cursor.execute(
-        'INSERT INTO inventory (product_id, quantity, last_updated) VALUES (%s, %s, %s) ON CONFLICT (product_id) DO UPDATE SET quantity = %s, last_updated = %s RETURNING *',
-        (product_id, quantity, datetime.now(), quantity, datetime.now())
-    )
-    
-    updated_inventory = cursor.fetchone()
     conn.commit()
     cursor.close()
     conn.close()
     
-    return jsonify(updated_inventory), 200
+    return jsonify({'message': 'Inventory updated successfully'})
 
 if __name__ == '__main__':
     app.run(debug=True)
