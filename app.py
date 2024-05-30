@@ -1,9 +1,11 @@
 from flask import Flask, render_template, request, jsonify
+from flask_cors import CORS
 import psycopg2
 from psycopg2.extras import RealDictCursor
 from datetime import datetime
 
 app = Flask(__name__)
+CORS(app)  # Habilitar CORS para toda la aplicación
 
 # Configuración de la base de datos
 DB_HOST = "35.193.168.157"
