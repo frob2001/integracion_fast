@@ -63,6 +63,9 @@ def update_inventory():
     """, (name,))
     
     product_inventory = cursor.fetchone()
+
+    if quantity_to_deduct <= 0:
+        return jsonify({'error': 'Not enough quantity'}), 400
     
     if product_inventory:
         current_quantity = product_inventory['quantity']
